@@ -1,0 +1,24 @@
+# Configuration à ajouter dans le docker-compose.yml principal de /seo-tools/
+
+  keyword-matcher:
+    build: ./keyword-matcher
+    container_name: keyword-matcher
+    ports:
+      - "8011:8000"
+    env_file:
+      - ./keyword-matcher/.env
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - BASE_PATH=/keyword-matcher
+      - REDIS_URL=redis://redis-judge:6379/2
+      - DEBUG=False
+      - MAX_KEYWORDS=1000000
+      - MAX_PAGES=50000
+    volumes:
+      - ./keyword-matcher/data/uploads:/app/uploads
+      - ./keyword-matcher/data/results:/app/results
+      - ./keyword-matcher/data/models:/app/models
+    depends_on:
+      - redis-judge
+    restart: unless-stopped 

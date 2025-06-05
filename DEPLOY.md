@@ -2,205 +2,265 @@
 
 ## Architecture de déploiement
 
-L'outil sera accessible à `exemple.com/seo-tools/keyword-matcher/` avec la configuration suivante :
+L'outil sera accessible à `agence-slashr.fr/keyword-matcher/` et s'intègre dans votre architecture SEO-Tools existante :
 
 ```
-VPS
-├── /seo-tools/                    # Dossier principal 
-│   ├── docker-compose.yml         # Orchestration des services
-│   └── keyword-matcher/           # Votre outil
-│       ├── docker-compose.prod.yml
-│       ├── Dockerfile.prod
-│       ├── nginx/
-│       ├── app/
-│       └── templates/
+/seo-tools/
+├── docker-compose.yml            # Orchestration principale (EXISTANT)
+├── redis-judge (conteneur)       # Redis partagé (EXISTANT)
+├── bigbrother/                   # Port 8007 (EXISTANT)
+├── analyseur-entites/            # Port 8008 (EXISTANT)
+├── robots/                       # Port 8009 (EXISTANT)
+├── judge/                        # Port 8010 (EXISTANT)
+└── keyword-matcher/              # Port 8011 (NOUVEAU)
+    ├── Dockerfile
+    ├── env.production
+    ├── docker-service.yml
+    ├── app/
+    ├── templates/
+    └── data/
 ```
 
-## Prérequis
+## Économies de ressources
 
-- Docker et Docker Compose installés sur le VPS
-- Nom de domaine configuré vers le VPS
-- Reverse proxy global (Nginx/Traefik) configuré si nécessaire
+✅ **Redis partagé** : Utilise `redis-judge` existant (DB 2)
+✅ **Architecture unifiée** : Un seul docker-compose.yml
+✅ **Pas de nouveau worker** : Système de jobs asyncio intégré
+
+**Économie estimée** : ~150-200 MB de RAM
 
 ## Étapes de déploiement
 
-### 1. Préparation sur le VPS
+### 1. Préparation
 
 ```bash
-# Se connecter au VPS
-ssh user@votre-vps.com
-
-# Créer la structure de dossiers
-mkdir -p /var/www/seo-tools
+# Sur votre VPS, aller dans seo-tools
 cd /var/www/seo-tools
 
-# Cloner ou copier le projet
+# Cloner le projet keyword-matcher
 git clone <votre-repo> keyword-matcher
 # ou
 scp -r ./keyword-matcher user@vps:/var/www/seo-tools/
 ```
 
-### 2. Configuration
+### 2. Configuration du docker-compose principal
+
+Ajoutez cette section dans votre `/var/www/seo-tools/docker-compose.yml` :
+
+```yaml
+  keyword-matcher:
+    build: ./keyword-matcher
+    container_name: keyword-matcher
+    ports:
+      - "8011:8000"
+    env_file:
+      - ./keyword-matcher/.env
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - BASE_PATH=/keyword-matcher
+      - REDIS_URL=redis://redis-judge:6379/2
+      - DEBUG=False
+      - MAX_KEYWORDS=1000000
+      - MAX_PAGES=50000
+    volumes:
+      - ./keyword-matcher/data/uploads:/app/uploads
+      - ./keyword-matcher/data/results:/app/results
+      - ./keyword-matcher/data/models:/app/models
+    depends_on:
+      - redis-judge
+    restart: unless-stopped
+```
+
+### 3. Configuration d'environnement
 
 ```bash
 cd keyword-matcher
 
-# Copier et modifier le fichier d'environnement
+# Configurer l'environnement
 cp env.production .env
 
-# Éditer avec vos paramètres
+# Éditer si nécessaire
 nano .env
 ```
 
-Modifiez les variables importantes :
-```env
-DOMAIN=votre-domaine.com
-ROOT_PATH=/seo-tools/keyword-matcher
-GOOGLE_REDIRECT_URI=https://votre-domaine.com/seo-tools/keyword-matcher/auth/callback
-```
-
-### 3. Déploiement automatique
+### 4. Déploiement automatique
 
 ```bash
-# Rendre le script exécutable
-chmod +x deploy.sh
-
-# Lancer le déploiement
-./deploy.sh
+# Dans /seo-tools/keyword-matcher/
+chmod +x deploy-integration.sh
+./deploy-integration.sh
 ```
 
-### 4. Configuration du reverse proxy principal
+Le script va :
+1. ✅ Vérifier que redis-judge tourne
+2. 📁 Créer les dossiers de données
+3. 🔨 Construire et démarrer le service
+4. 🔍 Tester la connectivité Redis
+5. 📋 Afficher les instructions Nginx
 
-Si vous avez un Nginx principal sur le VPS, ajoutez cette configuration :
+### 5. Configuration Nginx
+
+Ajoutez cette section dans votre configuration Nginx principale :
 
 ```nginx
-# /etc/nginx/sites-available/seo-tools
-server {
-    listen 80;
-    server_name votre-domaine.com;
-
-    # Redirection HTTPS (recommandé)
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name votre-domaine.com;
-
-    # Configuration SSL
-    ssl_certificate /path/to/your/cert.pem;
-    ssl_certificate_key /path/to/your/key.pem;
-
-    # Proxy vers le conteneur keyword-matcher
-    location /seo-tools/keyword-matcher/ {
-        proxy_pass http://127.0.0.1:8080/seo-tools/keyword-matcher/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Pour les WebSockets
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
+# Dans votre configuration Nginx existante
+location /keyword-matcher/ {
+    proxy_pass http://127.0.0.1:8011/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Prefix /keyword-matcher;
     
-    # Autres configurations pour d'autres outils...
+    # Pour les WebSockets
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    
+    # Timeouts
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 300s;
+}
+
+location = /keyword-matcher {
+    return 301 /keyword-matcher/;
 }
 ```
 
-### 5. Vérification
-
+Puis recharger Nginx :
 ```bash
-# Vérifier les conteneurs
-docker-compose -f docker-compose.prod.yml ps
-
-# Vérifier les logs
-docker-compose -f docker-compose.prod.yml logs -f keyword-matcher
-
-# Test de santé
-curl http://localhost:8080/seo-tools/keyword-matcher/health
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-## Commandes utiles
+### 6. Vérification
 
-### Gestion des services
 ```bash
-# Démarrer
-docker-compose -f docker-compose.prod.yml up -d
+# Status des conteneurs
+docker-compose ps
 
-# Arrêter
-docker-compose -f docker-compose.prod.yml down
+# Test local
+curl http://localhost:8011/health
 
-# Redémarrer un service
-docker-compose -f docker-compose.prod.yml restart keyword-matcher
+# Test public (après config Nginx)
+curl https://agence-slashr.fr/keyword-matcher/health
 
-# Voir les logs
-docker-compose -f docker-compose.prod.yml logs -f
+# Logs
+docker-compose logs -f keyword-matcher
+```
+
+## Gestion Redis partagé
+
+### Répartition des bases de données
+- **DB 0** : Judge SEO
+- **DB 1** : Autres projets
+- **DB 2** : Keyword-URL Matcher (nouveau)
+
+### Monitoring Redis
+```bash
+# État général
+docker exec redis-judge redis-cli info
+
+# Utilisation par base
+for db in {0..2}; do 
+    echo "DB $db: $(docker exec redis-judge redis-cli -n $db dbsize) clés"
+done
+
+# Jobs keyword-matcher en cours
+docker exec redis-judge redis-cli -n 2 keys "*job*"
+```
+
+## Commandes de gestion
+
+### Service keyword-matcher
+```bash
+# Démarrer/Arrêter
+docker-compose up -d keyword-matcher
+docker-compose stop keyword-matcher
+
+# Logs en temps réel
+docker-compose logs -f keyword-matcher
+
+# Redémarrer après modification
+docker-compose build keyword-matcher
+docker-compose up -d keyword-matcher
 ```
 
 ### Maintenance
 ```bash
 # Mise à jour du code
+cd /var/www/seo-tools/keyword-matcher
 git pull origin main
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
+cd ..
+docker-compose build keyword-matcher
+docker-compose up -d keyword-matcher
 
-# Nettoyage
-docker system prune -f
-docker image prune -f
+# Nettoyer la DB Redis si nécessaire
+docker exec redis-judge redis-cli -n 2 flushdb
 
 # Sauvegarde des données
-tar -czf backup_$(date +%Y%m%d).tar.gz data/
+tar -czf backup_keyword_matcher_$(date +%Y%m%d).tar.gz keyword-matcher/data/
 ```
 
-### Monitoring
-```bash
-# Utilisation des ressources
-docker stats
+## Ports utilisés
 
-# Espace disque
-du -sh data/
-
-# Logs d'erreur spécifiques
-docker-compose -f docker-compose.prod.yml logs keyword-matcher | grep ERROR
-```
+| Service | Port | URL |
+|---------|------|-----|
+| bigbrother | 8007 | /bigbrother/ |
+| analyseur-entites | 8008 | /analyseur-entites/ |
+| robots | 8009 | /robots/ |
+| judge-app | 8010 | /judge/ |
+| **keyword-matcher** | **8011** | **/keyword-matcher/** |
 
 ## Troubleshooting
 
-### L'application n'est pas accessible
-1. Vérifier que les conteneurs tournent : `docker-compose -f docker-compose.prod.yml ps`
-2. Vérifier les logs : `docker-compose -f docker-compose.prod.yml logs`
-3. Tester en local : `curl http://localhost:8080/seo-tools/keyword-matcher/health`
-
-### WebSocket ne fonctionne pas
-1. Vérifier la configuration nginx pour les upgrades WebSocket
-2. S'assurer que le port 8080 est accessible
-3. Vérifier les headers de forwarding
-
-### Problèmes de performance
-1. Augmenter les ressources Docker si nécessaire
-2. Vérifier l'utilisation disque : `df -h`
-3. Monitorer la RAM : `free -h`
-
-### Erreurs de permissions
+### Service ne démarre pas
 ```bash
-# Corriger les permissions des dossiers de données
-sudo chown -R 1000:1000 data/
-chmod -R 755 data/
+# Vérifier les logs
+docker-compose logs keyword-matcher
+
+# Vérifier Redis
+docker ps | grep redis-judge
+docker exec redis-judge redis-cli ping
+
+# Reconstruire l'image
+docker-compose build --no-cache keyword-matcher
 ```
 
-## Sécurité
+### Problèmes Redis
+```bash
+# Tester la connexion
+docker exec keyword-matcher python -c "
+import redis
+r = redis.from_url('redis://redis-judge:6379/2')
+print('Redis OK:', r.ping())
+"
 
-- Utilisez HTTPS en production
-- Configurez un firewall pour limiter l'accès aux ports
-- Mettez à jour régulièrement les images Docker
-- Sauvegardez régulièrement les données importantes
+# Vérifier les logs Redis
+docker logs redis-judge
+```
 
-## Support
+### Conflits de ports
+Si le port 8011 est occupé, modifiez dans `docker-compose.yml` :
+```yaml
+ports:
+  - "8012:8000"  # Ou un autre port libre
+```
 
-En cas de problème :
-1. Consultez les logs avec `docker-compose -f docker-compose.prod.yml logs`
-2. Vérifiez la configuration dans `env.production`
-3. Testez les endpoints avec curl
-4. Vérifiez la connectivité Redis 
+Et mettez à jour la configuration Nginx correspondante.
+
+## Avantages de cette intégration
+
+✅ **Cohérence** : Même pattern que vos autres outils
+✅ **Simplicité** : Un seul docker-compose pour tout
+✅ **Performance** : Redis optimisé et partagé
+✅ **Maintenance** : Gestion centralisée des services
+✅ **Économie** : Pas de duplication d'infrastructure
+
+## URLs finales
+
+- **Interface** : https://agence-slashr.fr/keyword-matcher/
+- **API** : https://agence-slashr.fr/keyword-matcher/docs
+- **Health** : https://agence-slashr.fr/keyword-matcher/health 

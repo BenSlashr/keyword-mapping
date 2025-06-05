@@ -482,7 +482,7 @@
                     // Détecter le protocole WebSocket approprié (ws ou wss)
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const host = window.location.host;
-                    const rootPath = window.location.pathname.replace(/\/$/, '');
+                    const rootPath = '/keyword-matcher';
                     
                     this.websocket = new WebSocket(`${protocol}//${host}${rootPath}/ws/jobs/${jobId}`);
                     
