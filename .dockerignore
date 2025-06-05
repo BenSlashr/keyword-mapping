@@ -1,0 +1,72 @@
+# Environnements virtuels
+venv/
+env/
+.venv/
+
+# Dossiers de données
+data/
+uploads/
+results/
+
+# Logs
+*.log
+logs/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Cache des packages
+.cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environnement et secrets
+.env
+.env.*
+!env.production
+!env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+*.md
+!README.md
+
+# Développement
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+!Dockerfile.prod
+
+# Scripts de développement
+dev-*.sh
+test-*.sh
+
+# Sauvegarde et tmp
+*.bak
+*.tmp
+backup*/
+temp/ 

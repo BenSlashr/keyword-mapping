@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword-URL Matcher | SLASHR</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Tabulator CSS -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #059669 100%);
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(20px);
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px solid rgba(55, 65, 81, 0.3);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        .progress-animate {
+            transition: width 0.3s ease-in-out;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-900 text-gray-100 min-h-screen" x-data="keywordMatcher()">
+    <!-- Header -->
+    <header class="gradient-bg border-b border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center justify-center">
+                        <img src="https://agence-slashr.fr/wp-content/uploads/2023/10/slashr-logo-white.svg" alt="Slashr Logo" width="70">
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">Keyword-URL Matcher</h1>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                
+                    <a href="https://outils.agence-slashr.fr">Nos outils</a>
+                    <a href="https://agence-slashr.fr/seo/" class="text-blue-200 hover:text-white transition-colors">
+                        Agence SEO à Lille
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Hero Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-white mb-4">
+                Matchez vos <span class="text-blue-400">mots-clés</span> 
+                <span class="text-green-400">avec vos URL</span>
+            </h2>
+            
+        </div>
+
+        <!-- Upload Section -->
+        <div class="glass-effect rounded-xl p-8 mb-8">
+            <h3 class="text-2xl font-semibold text-white mb-6 flex items-center">
+                <i class="fas fa-upload mr-3 text-blue-400"></i>
+                Fichiers à uploader
+            </h3>
+            
+            <!-- Upload Form -->
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Keywords Upload -->
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-gray-300">
+                        Mots-clés
+                    </label>
+                    
+                    <div class="relative">
+                        <input type="file" 
+                               @change="handleKeywordsFile($event)"
+                               accept=".csv"
+                               class="hidden" 
+                               id="keywords-file">
+                        
+                        <label for="keywords-file" 
+                               class="flex items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 transition-colors">
+                            <div class="text-center">
+                                <i class="fas fa-file-csv text-4xl text-gray-400 mb-4"></i>
+                                <p class="text-lg font-medium text-gray-300">
+                                    Déposer le fichier keywords.csv
+                                </p>
+                                <p class="text-sm text-gray-500 mt-2">
+                                    Colonnes: keyword, volume (optionnel)
+                                </p>
+                            </div>
+                        </label>
+                        
+                        <div x-show="keywordsFile" class="mt-4 flex items-center">
+                            <i class="fas fa-check-circle text-green-400 mr-2"></i>
+                            <span x-text="keywordsFile?.name" class="text-green-300"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pages Source -->
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-gray-300">
+                        Vos pages
+                    </label>
+                    
+                    <!-- Source Type Selection -->
+                    <div class="flex space-x-4 mb-4">
+                        <label class="flex items-center">
+                            <input type="radio" 
+                                   x-model="sourceType" 
+                                   value="csv" 
+                                   class="text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500">
+                            <span class="ml-2 text-gray-300">Toutes les types</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" 
+                                   x-model="sourceType" 
+                                   value="sitemap" 
+                                   class="text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500">
+                            <span class="ml-2 text-gray-300">Sitemap</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" 
+                                   x-model="sourceType" 
+                                   value="live_crawl" 
+                                   class="text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500">
+                            <span class="ml-2 text-gray-300">Live Crawl</span>
+                        </label>
+                    </div>
+                    
+                    <!-- CSV Upload -->
+                    <div x-show="sourceType === 'csv'" class="space-y-4">
+                        <input type="file" 
+                               @change="handlePagesFile($event)"
+                               accept=".csv"
+                               class="hidden" 
+                               id="pages-file">
+                        
+                        <label for="pages-file" 
+                               class="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 transition-colors">
+                            <div class="text-center">
+                                <i class="fas fa-file-csv text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-gray-300">Pages CSV</p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Sitemap URL -->
+                    <div x-show="sourceType === 'sitemap'" class="space-y-4">
+                        <input type="url" 
+                               x-model="sitemapUrl"
+                               placeholder="https://example.com/sitemap.xml"
+                               class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    
+                    <!-- Live Crawl -->
+                    <div x-show="sourceType === 'live_crawl'" class="space-y-4">
+                        <input type="url" 
+                               x-model="seedUrl"
+                               placeholder="https://example.com"
+                               class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        
+                        <div class="flex items-center space-x-4">
+                            <label class="text-sm text-gray-300">Profondeur:</label>
+                            <input type="number" 
+                                   x-model="crawlDepth" 
+                                   min="1" 
+                                   max="5" 
+                                   class="w-20 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Advanced Options -->
+            <div class="mt-8 pt-6 border-t border-gray-700">
+                <h4 class="text-lg font-medium text-white mb-4 flex items-center">
+                    <i class="fas fa-cog mr-2 text-gray-400"></i>
+                    Paramètres avancés
+                </h4>
+                
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2 flex items-center">
+                            Seuil minimal
+                            <div class="group relative ml-2">
+                                <i class="fas fa-info-circle text-gray-500 cursor-help"></i>
+                                <div class="invisible group-hover:visible absolute z-10 w-64 p-3 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg shadow-lg -top-2 left-6">
+                                    Score minimum requis pour qu'un mot-clé soit assigné à une page. 
+                                    Plus élevé = plus strict = moins d'assignations mais plus précises.
+                                    <div class="absolute top-2 -left-1 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45"></div>
+                                </div>
+                            </div>
+                        </label>
+                        <input type="range" 
+                               x-model="minThreshold" 
+                               min="0.1" 
+                               max="1.0" 
+                               step="0.05"
+                               class="w-full">
+                        <span x-text="minThreshold" class="text-xs text-gray-400"></span>
+                    </div>
+                    
+
+                    
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-2 flex items-center">
+                            Top suggestions
+                            <div class="group relative ml-2">
+                                <i class="fas fa-info-circle text-gray-500 cursor-help"></i>
+                                <div class="invisible group-hover:visible absolute z-10 w-64 p-3 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg shadow-lg -top-2 left-6">
+                                    Nombre d'URLs alternatives proposées pour chaque mot-clé en plus de la meilleure correspondance. 
+                                    Utile pour avoir des options de backup.
+                                    <div class="absolute top-2 -left-1 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45"></div>
+                                </div>
+                            </div>
+                        </label>
+                        <input type="number" 
+                               x-model="topSuggestions" 
+                               min="1" 
+                               max="10"
+                               class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white">
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- Launch Button -->
+            <div class="mt-8 text-center">
+                <button @click="startMatching()" 
+                        :disabled="!canStart"
+                        :class="canStart ? 'bg-blue-600 hover:bg-blue-700 glow-border' : 'bg-gray-600 cursor-not-allowed'"
+                        class="inline-flex items-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all duration-300">
+                    <i class="fas fa-rocket mr-3"></i>
+                    RECHERCHER
+                </button>
+            </div>
+        </div>
+        
+        <!-- Progress Section -->
+        <div x-show="currentJob" class="glass-effect rounded-xl p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-semibold text-white">Progression</h3>
+                <div class="flex items-center space-x-4">
+                    <span x-text="jobProgress?.current_step" class="text-gray-300"></span>
+                    <span x-text="Math.round(jobProgress?.progress || 0) + '%'" class="text-blue-400 font-mono"></span>
+                </div>
+            </div>
+            
+            <div class="w-full bg-gray-700 rounded-full h-3 mb-4">
+                <div class="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full progress-animate"
+                     :style="`width: ${jobProgress?.progress || 0}%`"></div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div class="text-center">
+                    <div class="text-gray-400">Temps écoulé</div>
+                    <div x-text="formatTime(elapsedTime)" class="text-white font-mono"></div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">Mémoire</div>
+                    <div x-text="Math.round(jobProgress?.memory_mb || 0) + ' MB'" class="text-white font-mono"></div>
+                </div>
+                <div class="text-center">
+                    <button @click="cancelJob()" class="text-red-400 hover:text-red-300">
+                        <i class="fas fa-stop mr-1"></i>Annuler
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div x-show="jobResults" class="space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="glass-effect rounded-lg p-6 text-center">
+                    <div class="text-3xl font-bold text-blue-400" x-text="jobResults?.stats?.assigned_keywords || 0"></div>
+                    <div class="text-gray-300">Mots-clés assignés</div>
+                </div>
+                <div class="glass-effect rounded-lg p-6 text-center">
+                    <div class="text-3xl font-bold text-green-400" x-text="jobResults?.stats?.total_pages || 0"></div>
+                    <div class="text-gray-300">Pages analysées</div>
+                </div>
+                <div class="glass-effect rounded-lg p-6 text-center">
+                    <div class="text-3xl font-bold text-yellow-400" x-text="jobResults?.stats?.orphan_keywords || 0"></div>
+                    <div class="text-gray-300">Mots-clés orphelins</div>
+                </div>
+            </div>
+            
+            <!-- Results Table -->
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-semibold text-white">Résultats</h3>
+                    <div class="flex space-x-4">
+                        <button @click="exportResults('csv')" 
+                                class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white">
+                            <i class="fas fa-download mr-2"></i>EXPORTER EN CSV
+                        </button>
+                        <button @click="exportResults('xlsx')" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white">
+                            Rapport Excel
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="flex flex-wrap gap-4 mb-6">
+                    <button @click="setFilter('all')" 
+                            :class="activeFilter === 'all' ? 'bg-blue-600' : 'bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-white">
+                        Tous
+                    </button>
+                    <button @click="setFilter('assignments')" 
+                            :class="activeFilter === 'assignments' ? 'bg-blue-600' : 'bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-white">
+                        Assignés
+                    </button>
+                    <button @click="setFilter('orphans')" 
+                            :class="activeFilter === 'orphans' ? 'bg-yellow-600' : 'bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-white">
+                        Orphelins
+                    </button>
+                </div>
+                
+                <!-- Table Container -->
+                <div id="results-table" class="bg-gray-800 rounded-lg"></div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Tabulator JS -->
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    
+    <!-- Main Alpine.js Component -->
+    <script>
+        function keywordMatcher() {
+            return {
+                // State
+                keywordsFile: null,
+                pagesFile: null,
+                sourceType: 'csv',
+                sitemapUrl: '',
+                seedUrl: '',
+                crawlDepth: 2,
+                minThreshold: 0.50,
+                topSuggestions: 3,
+                
+                // Job tracking
+                currentJob: null,
+                jobProgress: null,
+                jobResults: null,
+                websocket: null,
+                elapsedTime: 0,
+                startTime: null,
+                
+                // UI
+                activeFilter: 'all',
+                resultsTable: null,
+                
+                init() {
+                    // Timer for elapsed time
+                    setInterval(() => {
+                        if (this.startTime && this.currentJob) {
+                            this.elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
+                        }
+                    }, 1000);
+                },
+                
+                get canStart() {
+                    return this.keywordsFile && (
+                        (this.sourceType === 'csv' && this.pagesFile) ||
+                        (this.sourceType === 'sitemap' && this.sitemapUrl) ||
+                        (this.sourceType === 'live_crawl' && this.seedUrl)
+                    );
+                },
+                
+                handleKeywordsFile(event) {
+                    this.keywordsFile = event.target.files[0];
+                },
+                
+                handlePagesFile(event) {
+                    this.pagesFile = event.target.files[0];
+                },
+                
+                async startMatching() {
+                    if (!this.canStart) return;
+                    
+                    const formData = new FormData();
+                    formData.append('keywords_file', this.keywordsFile);
+                    formData.append('source_type', this.sourceType);
+                    formData.append('min_score_threshold', this.minThreshold);
+                    formData.append('top_suggestions', this.topSuggestions);
+                    
+                    if (this.sourceType === 'csv' && this.pagesFile) {
+                        formData.append('pages_file', this.pagesFile);
+                    } else if (this.sourceType === 'sitemap') {
+                        formData.append('sitemap_url', this.sitemapUrl);
+                    } else if (this.sourceType === 'live_crawl') {
+                        formData.append('seed_url', this.seedUrl);
+                        formData.append('crawl_depth', this.crawlDepth);
+                    }
+                    
+                    try {
+                        const response = await fetch('jobs/match', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            this.currentJob = result.job_id;
+                            this.startTime = Date.now();
+                            this.connectWebSocket(result.job_id);
+                        } else {
+                            alert('Erreur: ' + result.detail);
+                        }
+                    } catch (error) {
+                        alert('Erreur réseau: ' + error.message);
+                    }
+                },
+                
+                connectWebSocket(jobId) {
+                    // Détecter le protocole WebSocket approprié (ws ou wss)
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const host = window.location.host;
+                    const rootPath = window.location.pathname.replace(/\/$/, '');
+                    
+                    this.websocket = new WebSocket(`${protocol}//${host}${rootPath}/ws/jobs/${jobId}`);
+                    
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.jobProgress = data;
+                        
+                        if (data.status === 'completed') {
+                            this.loadResults(jobId);
+                            this.currentJob = null; // Arrêter le timer
+                            this.websocket.close();
+                        } else if (data.status === 'failed') {
+                            alert('Job échoué: ' + data.error_message);
+                            this.currentJob = null; // Arrêter le timer
+                            this.websocket.close();
+                        }
+                    };
+                    
+                    this.websocket.onerror = () => {
+                        console.error('Erreur WebSocket');
+                    };
+                },
+                
+                async loadResults(jobId) {
+                    try {
+                        const response = await fetch(`jobs/${jobId}/result`);
+                        this.jobResults = await response.json();
+                        this.createResultsTable();
+                    } catch (error) {
+                        console.error('Erreur chargement résultats:', error);
+                    }
+                },
+                
+                createResultsTable() {
+                    if (this.resultsTable) {
+                        this.resultsTable.destroy();
+                    }
+                    
+                    const data = this.getFilteredData();
+                    
+                    this.resultsTable = new Tabulator("#results-table", {
+                        data: data,
+                        layout: "fitColumns",
+                        theme: "midnight",
+                        pagination: "local",
+                        paginationSize: 25,
+                        columns: [
+                            {title: "Mot-clé", field: "keyword", width: 250},
+                            {title: "URL", field: "url", width: 400, formatter: "link"},
+                            {title: "Score", field: "score", width: 120, formatter: function(cell) {
+                                const value = cell.getValue();
+                                return `<span class="font-mono">${(value * 100).toFixed(1)}%</span>`;
+                            }},
+                            {title: "Type", field: "type", width: 130, formatter: function(cell) {
+                                const value = cell.getValue();
+                                const colors = {
+                                    'assigned': 'text-green-400',
+                                    'orphan': 'text-yellow-400'
+                                };
+                                const labels = {
+                                    'assigned': 'Assigné',
+                                    'orphan': 'Orphelin'
+                                };
+                                return `<span class="${colors[value] || 'text-gray-400'}">${labels[value] || value}</span>`;
+                            }}
+                        ]
+                    });
+                },
+                
+                getFilteredData() {
+                    let data = [];
+                    
+                    if (this.activeFilter === 'all' || this.activeFilter === 'assignments') {
+                        data = data.concat(this.jobResults.assignments.map(a => ({
+                            keyword: a.keyword,
+                            url: a.url,
+                            score: a.score,
+                            type: 'assigned'
+                        })));
+                    }
+                    
+                    if (this.activeFilter === 'all' || this.activeFilter === 'orphans') {
+                        data = data.concat(this.jobResults.orphans.map(o => ({
+                            keyword: o.keyword,
+                            url: '-',
+                            score: 0,
+                            type: 'orphan'
+                        })));
+                    }
+                    
+                    return data;
+                },
+                
+                setFilter(filter) {
+                    this.activeFilter = filter;
+                    if (this.resultsTable && this.jobResults) {
+                        this.resultsTable.replaceData(this.getFilteredData());
+                    }
+                },
+                
+                async exportResults(format) {
+                    if (!this.currentJob) return;
+                    
+                    try {
+                        const response = await fetch(`jobs/${this.currentJob}/result?format=${format}`);
+                        const blob = await response.blob();
+                        
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `keyword_matching_${this.currentJob}.${format}`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                    } catch (error) {
+                        alert('Erreur export: ' + error.message);
+                    }
+                },
+                
+                async cancelJob() {
+                    if (!this.currentJob) return;
+                    
+                    try {
+                        await fetch(`jobs/${this.currentJob}`, { method: 'DELETE' });
+                        this.currentJob = null;
+                        this.jobProgress = null;
+                        if (this.websocket) {
+                            this.websocket.close();
+                        }
+                    } catch (error) {
+                        console.error('Erreur annulation:', error);
+                    }
+                },
+                
+                formatTime(seconds) {
+                    if (!seconds) return '-';
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  keyword-matcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: keyword-matcher-app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=False
+      - MAX_KEYWORDS=1000000
+      - MAX_PAGES=50000
+      - ROOT_PATH=/seo-tools/keyword-matcher
+      - DOMAIN=exemple.com
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ./data/results:/app/results
+      - ./data/models:/app/models
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - keyword-matcher-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: keyword-matcher-redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - keyword-matcher-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: keyword-matcher-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./data/static:/var/www/static:ro
+    depends_on:
+      - keyword-matcher
+    restart: unless-stopped
+    networks:
+      - keyword-matcher-network
+
+volumes:
+  redis_data:
+
+networks:
+  keyword-matcher-network:
+    driver: bridge 
