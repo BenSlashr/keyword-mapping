@@ -67,19 +67,31 @@ class MetricsCollector:
     async def start(self):
         """Démarre le collecteur de métriques"""
         try:
-            # Démarrer le serveur Prometheus
-            if not self.metrics_server_started:
-                start_http_server(Config.PROMETHEUS_PORT)
-                self.metrics_server_started = True
-                logger.info(f"Serveur métriques Prometheus démarré sur le port {Config.PROMETHEUS_PORT}")
+            # Démarrer le serveur Prometheus seulement si activé et pas déjà démarré
+            if Config.ENABLE_PROMETHEUS and not self.metrics_server_started:
+                try:
+                    start_http_server(Config.PROMETHEUS_PORT)
+                    self.metrics_server_started = True
+                    logger.info(f"Serveur métriques Prometheus démarré sur le port {Config.PROMETHEUS_PORT}")
+                except OSError as e:
+                    if e.errno == 98:  # Address already in use
+                        logger.warning(f"Port {Config.PROMETHEUS_PORT} déjà utilisé, métriques Prometheus désactivées")
+                        self.metrics_server_started = False
+                    else:
+                        raise
+            elif not Config.ENABLE_PROMETHEUS:
+                logger.info("Métriques Prometheus désactivées par configuration")
+                self.metrics_server_started = False
             
             # Démarrer la tâche de mise à jour périodique
-            self.update_task = asyncio.create_task(self._update_metrics_loop())
-            logger.info("Collecteur de métriques démarré")
+            if not self.update_task or self.update_task.done():
+                self.update_task = asyncio.create_task(self._update_metrics_loop())
+                logger.info("Collecteur de métriques démarré")
             
         except Exception as e:
             logger.error(f"Erreur démarrage collecteur métriques: {e}")
-            raise
+            # Ne pas lever l'exception pour ne pas empêcher le démarrage de l'app
+            self.metrics_server_started = False
     
     async def stop(self):
         """Arrête le collecteur de métriques"""

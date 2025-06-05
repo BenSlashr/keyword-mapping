@@ -47,6 +47,7 @@ class Config:
     MIN_CONFIDENCE_DISPLAY = float(os.getenv("MIN_CONFIDENCE_DISPLAY", 0.30))
     
     # Monitoring
+    ENABLE_PROMETHEUS = os.getenv("ENABLE_PROMETHEUS", "True").lower() == "true"
     PROMETHEUS_PORT = int(os.getenv("PROMETHEUS_PORT", 9090))
     
     # Modèle d'embeddings
